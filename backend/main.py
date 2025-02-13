@@ -127,6 +127,19 @@ async def create_approval_request(request_data: Dict[str, Any]):
             detail=f"Failed to create approval request: {str(e)}"
         )
 
+@app.get("/api/workflow/lease-exit/list")
+async def list_workflows():
+    try:
+        logger.info("Fetching all workflows")
+        workflows = storage.get_all_workflows()
+        return JSONResponse(content=workflows)
+    except Exception as e:
+        logger.error(f"Error fetching workflows: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch workflows: {str(e)}"
+        )
+
 try:
     # Initialize agents
     logger.info("Initializing agents...")

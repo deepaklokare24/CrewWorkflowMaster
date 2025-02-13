@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 import json
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
@@ -164,3 +164,18 @@ class Storage:
                     "updated_at": approval.updated_at.isoformat()
                 }
             return {}
+
+    def get_all_workflows(self) -> List[Dict[str, Any]]:
+        """Retrieve all workflows from the database"""
+        with Session(self.engine) as session:
+            workflows = session.query(Workflow).all()
+            return [
+                {
+                    "id": w.id,
+                    "data": w.data,
+                    "state": w.state,
+                    "created_at": w.created_at.isoformat(),
+                    "updated_at": w.updated_at.isoformat()
+                }
+                for w in workflows
+            ]
