@@ -13,11 +13,12 @@ class WorkflowAgent:
             smooth process transitions. I understand the lease exit process deeply 
             and can coordinate between different stakeholders.""",
             tools=[
-                self.tools.create_workflow(),  # Call methods to get tool instances
+                self.tools.create_workflow(),
                 self.tools.update_workflow_state(),
                 self.tools.get_workflow_status()
             ]
         )
 
     def get_agent(self) -> Agent:
+        """Return the configured CrewAI agent"""
         return self.agent

@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from crewai import Crew
+from crewai import Crew, Task
 import logging
+import os
 
 from backend.agents.workflow_agent import WorkflowAgent
 from backend.agents.form_agent import FormAgent
@@ -13,6 +14,11 @@ from backend.storage import Storage
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Verify ANTHROPIC_API_KEY
+if not os.getenv("ANTHROPIC_API_KEY"):
+    logger.error("ANTHROPIC_API_KEY environment variable is not set")
+    raise ValueError("ANTHROPIC_API_KEY environment variable must be set")
 
 app = FastAPI()
 storage = Storage()
@@ -34,6 +40,46 @@ try:
     notification_agent = NotificationAgent()
     approval_agent = ApprovalAgent()
 
+    # Create tasks with expected outputs
+    tasks = [
+        Task(
+            description="Process new lease exit workflow",
+            expected_output="""A processed workflow with:
+                - Validated input data
+                - Generated workflow ID
+                - Initial state set
+                - Required approvals identified""",
+            agent=workflow_agent.get_agent(),
+        ),
+        Task(
+            description="Handle form submissions",
+            expected_output="""Processed form submission with:
+                - Validated form data
+                - Stored form content
+                - Generated form ID
+                - Extracted key information""",
+            agent=form_agent.get_agent(),
+        ),
+        Task(
+            description="Manage notifications",
+            expected_output="""Managed notifications with:
+                - Generated notification content
+                - Sent notifications
+                - Tracked delivery status
+                - Stored notification records""",
+            agent=notification_agent.get_agent(),
+        ),
+        Task(
+            description="Process approvals",
+            expected_output="""Processed approval with:
+                - Created approval request
+                - Tracked approval status
+                - Updated workflow state
+                - Stored approval decision""",
+            agent=approval_agent.get_agent(),
+        ),
+    ]
+
     # Create crew
     crew = Crew(
         agents=[
@@ -42,7 +88,7 @@ try:
             notification_agent.get_agent(),
             approval_agent.get_agent()
         ],
-        tasks=[],  # Tasks will be created dynamically based on requests
+        tasks=tasks
     )
     logger.info("Crew initialized successfully")
 except Exception as e:

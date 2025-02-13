@@ -33,3 +33,7 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "python -m backend.main"
 waitForPort = 8000
+
+[[ports]]
+localPort = 8000
+externalPort = 80
