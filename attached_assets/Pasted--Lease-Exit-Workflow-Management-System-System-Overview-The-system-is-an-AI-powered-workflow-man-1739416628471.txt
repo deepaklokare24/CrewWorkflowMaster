@@ -220,7 +220,7 @@ GET /api/approvals/pending
 
 1. **Backend**
    - Python for backend APIs
-   - PostgreSQL or supabase for structured data
+   - SQLLite or PostgreSQL or supabase for structured data
    - MongoDB for document storage
    - Redis for caching
 

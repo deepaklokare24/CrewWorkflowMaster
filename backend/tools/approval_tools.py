@@ -1,85 +1,86 @@
 from typing import Dict, Any, Optional, Type
-from crewai.tools import BaseTool
+from langchain.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.storage import Storage
 
-class ApprovalToolConfig(BaseModel):
-    storage: Storage
+class ApprovalTool(BaseTool):
+    name: str = "approval_tool"
+    description: str = "Tool for managing approval workflows and decisions"
+    storage: Storage = Field(default=None)
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class ApprovalRequestSchema(BaseModel):
-    request_data: Dict[str, Any] = Field(..., description="The approval request data")
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def __init__(self, storage: Storage):
+        super().__init__()
+        self.storage = storage
 
-class ApprovalDecisionSchema(BaseModel):
-    approval_id: str = Field(..., description="The ID of the approval to update")
-    decision: str = Field(..., description="The decision made on the approval request")
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def _run(self, action: str, **kwargs) -> Any:
+        """Run the tool with the specified action"""
+        actions = {
+            "create": self.create_approval,
+            "update": self.update_approval,
+            "get": self.get_approval,
+            "validate": self.validate_approval_chain
+        }
+        if action not in actions:
+            raise ValueError(f"Unknown action: {action}")
+        return actions[action](**kwargs)
 
-class ApprovalIdSchema(BaseModel):
-    approval_id: str = Field(..., description="The ID of the approval to check")
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    def create_approval(self, request_data: Dict[str, Any]) -> str:
+        """Create a new approval request"""
+        return self.storage.create_approval(request_data)
 
-class BaseApprovalTool(BaseTool):
-    name: str = Field(default="", description="The name of the tool")
-    description: str = Field(default="", description="The description of the tool")
-    args_schema: Optional[Type[BaseModel]] = Field(default=None, description="The schema for tool arguments")
-    config_schema: Type[BaseModel] = Field(default=ApprovalToolConfig, description="The schema for tool configuration")
+    def update_approval(self, approval_id: str, decision: str) -> bool:
+        """Update approval decision"""
+        return self.storage.update_approval(approval_id, decision)
 
-class CreateApprovalRequestTool(BaseApprovalTool):
-    name: str = Field(default="create_approval_request", description="Tool name")
-    description: str = Field(default="Creates a new approval request", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=ApprovalRequestSchema, description="Arguments schema")
+    def get_approval(self, approval_id: str) -> Dict[str, Any]:
+        """Get approval details"""
+        return self.storage.get_approval(approval_id)
 
-    def _run(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        approval_id = self.config.storage.create_approval(request_data)
-        return {"approval_id": approval_id, "status": "pending"}
+    def validate_approval_chain(self, workflow_id: str) -> Dict[str, Any]:
+        """Validate the approval chain for a workflow"""
+        approvals = self.storage.get_workflow(workflow_id).get("approvals", [])
+        required_approvers = ["advisory", "ifm", "legal", "mac", "pjm"]
+        
+        result = {
+            "valid": True,
+            "errors": [],
+            "pending": [],
+            "approved": [],
+            "rejected": []
+        }
 
-    async def _arun(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+        for approver in required_approvers:
+            found = False
+            for approval in approvals:
+                if approval.get("approver_role") == approver:
+                    found = True
+                    status = approval.get("status")
+                    if status == "pending":
+                        result["pending"].append(approver)
+                    elif status == "approved":
+                        result["approved"].append(approver)
+                    elif status == "rejected":
+                        result["rejected"].append(approver)
+                        result["valid"] = False
+                    break
+            if not found:
+                result["errors"].append(f"Missing approval from {approver}")
+                result["valid"] = False
 
-class ProcessApprovalDecisionTool(BaseApprovalTool):
-    name: str = Field(default="process_approval_decision", description="Tool name")
-    description: str = Field(default="Processes an approval decision", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=ApprovalDecisionSchema, description="Arguments schema")
+        return result
 
-    def _run(self, **kwargs: Any) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        approval_id = kwargs["approval_id"]
-        decision = kwargs["decision"]
-        success = self.config.storage.update_approval(approval_id, decision)
-        return {"success": success, "decision": decision}
-
-    async def _arun(self, **kwargs: Any) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
-
-class CheckApprovalStatusTool(BaseApprovalTool):
-    name: str = Field(default="check_approval_status", description="Tool name")
-    description: str = Field(default="Checks the status of an approval request", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=ApprovalIdSchema, description="Arguments schema")
-
-    def _run(self, approval_id: str) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        return self.config.storage.get_approval(approval_id)
-
-    async def _arun(self, approval_id: str) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+    async def _arun(self, *args, **kwargs):
+        """Async implementation - not used"""
+        raise NotImplementedError("Async not implemented")
 
 class ApprovalTools:
     """Tools for managing approval workflows and decisions"""
 
     def __init__(self):
         self.storage = Storage()
+        self.tool = ApprovalTool(self.storage)
 
-    def create_approval_request(self) -> BaseTool:
-        return CreateApprovalRequestTool(config=ApprovalToolConfig(storage=self.storage))
-
-    def process_approval_decision(self) -> BaseTool:
-        return ProcessApprovalDecisionTool(config=ApprovalToolConfig(storage=self.storage))
-
-    def check_approval_status(self) -> BaseTool:
-        return CheckApprovalStatusTool(config=ApprovalToolConfig(storage=self.storage))
+    def get_tools(self) -> list:
+        """Get all approval tools"""
+        return [self.tool]

@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import Link from 'next/link'
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -19,24 +21,32 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers>
-          <div className="min-h-screen bg-background">
-            <nav className="border-b">
-              <div className="container mx-auto flex h-16 items-center px-4">
-                <Link href="/" className="flex items-center space-x-2">
-                  <span className="text-xl font-bold">Lease Exit Manager</span>
-                </Link>
-                <div className="ml-auto flex items-center space-x-4">
-                  <Link href="/tasks" className="text-sm font-medium">Tasks</Link>
-                  <Link href="/notifications" className="text-sm font-medium">Notifications</Link>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Providers>
+            <div className="min-h-screen bg-background">
+              <nav className="border-b">
+                <div className="container mx-auto flex h-16 items-center px-4">
+                  <Link href="/" className="flex items-center space-x-2">
+                    <span className="text-xl font-bold">Lease Exit Manager</span>
+                  </Link>
+                  <div className="ml-auto flex items-center space-x-4">
+                    <Link href="/tasks" className="text-sm font-medium">Tasks</Link>
+                    <Link href="/notifications" className="text-sm font-medium">Notifications</Link>
+                  </div>
                 </div>
-              </div>
-            </nav>
-            <main className="container mx-auto py-6">
-              {children}
-            </main>
-          </div>
-        </Providers>
+              </nav>
+              <main className="container mx-auto py-6">
+                {children}
+              </main>
+            </div>
+            <Toaster />
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   )

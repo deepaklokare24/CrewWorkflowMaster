@@ -4,12 +4,15 @@ This makes the backend directory a proper Python package.
 """
 
 from .storage import Storage
-from .agents import WorkflowAgent, FormAgent, NotificationAgent, ApprovalAgent
+from .agents import LeaseExitCrew
 
 __all__ = [
     'Storage',
-    'WorkflowAgent',
-    'FormAgent',
-    'NotificationAgent',
-    'ApprovalAgent'
+    'LeaseExitCrew'
 ]
+
+"""
+Flow.AI - Lease Exit Workflow Management System
+"""
+
+__version__ = "0.1.0"

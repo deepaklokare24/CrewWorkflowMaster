@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, Type
-from crewai.tools import BaseTool
+from langchain.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.storage import Storage
 
@@ -23,66 +23,112 @@ class GetWorkflowSchema(BaseModel):
     workflow_id: str = Field(..., description="The ID of the workflow to retrieve")
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class BaseCRUDTool(BaseTool):
-    name: str = Field(default="", description="The name of the tool")
-    description: str = Field(default="", description="The description of the tool")
-    args_schema: Optional[Type[BaseModel]] = Field(default=None, description="The schema for tool arguments")
-    config_schema: Type[BaseModel] = Field(default=WorkflowToolConfig, description="The schema for tool configuration")
+class WorkflowTool(BaseTool):
+    name: str = "workflow_tool"
+    description: str = "Tool for managing lease exit workflows"
+    storage: Storage = Field(default=None)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class CreateWorkflowTool(BaseCRUDTool):
-    name: str = Field(default="create_workflow", description="Tool name")
-    description: str = Field(default="Creates a new lease exit workflow", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=CreateWorkflowSchema, description="Arguments schema")
+    def __init__(self, storage: Storage):
+        super().__init__()
+        self.storage = storage
 
-    def _run(self, lease_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        workflow_id = self.config.storage.create_workflow(lease_data)
-        return {"workflow_id": workflow_id, "status": "created"}
+    def _run(self, action: str, **kwargs) -> Any:
+        """Run the tool with the specified action"""
+        actions = {
+            "create": self.create_workflow,
+            "update": self.update_workflow,
+            "get": self.get_workflow,
+            "validate": self.validate_workflow,
+            "list": self.list_workflows
+        }
+        if action not in actions:
+            raise ValueError(f"Unknown action: {action}")
+        return actions[action](**kwargs)
 
-    async def _arun(self, lease_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+    def create_workflow(self, workflow_data: Dict[str, Any]) -> str:
+        """Create a new workflow instance"""
+        return self.storage.create_workflow(workflow_data)
 
-class UpdateWorkflowStateTool(BaseCRUDTool):
-    name: str = Field(default="update_workflow_state", description="Tool name")
-    description: str = Field(default="Updates the state of an existing workflow", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=UpdateWorkflowSchema, description="Arguments schema")
+    def update_workflow(self, workflow_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update workflow state and data"""
+        return self.storage.update_workflow_state(workflow_id, update_data.get("state"))
 
-    def _run(self, **kwargs: Any) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        workflow_id = kwargs["workflow_id"]
-        new_state = kwargs["new_state"]
-        success = self.config.storage.update_workflow_state(workflow_id, new_state)
-        return {"success": success, "new_state": new_state}
+    def get_workflow(self, workflow_id: str) -> Dict[str, Any]:
+        """Get workflow details"""
+        return self.storage.get_workflow(workflow_id)
 
-    async def _arun(self, **kwargs: Any) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+    def validate_workflow(self, workflow_id: str) -> Dict[str, Any]:
+        """Validate workflow state and requirements"""
+        workflow = self.storage.get_workflow(workflow_id)
+        if not workflow:
+            return {"valid": False, "errors": ["Workflow not found"]}
 
-class GetWorkflowStatusTool(BaseCRUDTool):
-    name: str = Field(default="get_workflow_status", description="Tool name")
-    description: str = Field(default="Retrieves the current status of a workflow", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=GetWorkflowSchema, description="Arguments schema")
+        validation_result = {
+            "valid": True,
+            "errors": [],
+            "warnings": []
+        }
 
-    def _run(self, workflow_id: str) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        return self.config.storage.get_workflow(workflow_id)
+        # Validate required forms
+        required_forms = {
+            "initial_form": "Initial Lease Exit Form",
+            "lease_requirements": "Lease Requirements & Cost Information",
+            "exit_requirements_ifm": "IFM Exit Requirements",
+            "exit_requirements_mac": "MAC Exit Requirements",
+            "exit_requirements_pjm": "PJM Exit Requirements"
+        }
 
-    async def _arun(self, workflow_id: str) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+        submitted_forms = {form.get("form_type"): True for form in workflow.get("forms", [])}
+        
+        for form_type, form_name in required_forms.items():
+            if form_type not in submitted_forms:
+                validation_result["valid"] = False
+                validation_result["errors"].append(f"Missing required form: {form_name}")
+
+        # Validate approvals if in approval state
+        if workflow.get("current_step") == "approval_chain":
+            approvals = workflow.get("approvals", [])
+            required_approvers = ["advisory", "ifm", "legal", "mac", "pjm"]
+            
+            for approver in required_approvers:
+                if not any(a.get("approver_role") == approver and a.get("status") == "approved" 
+                          for a in approvals):
+                    validation_result["valid"] = False
+                    validation_result["errors"].append(f"Missing approval from {approver.upper()}")
+
+        return validation_result
+
+    def list_workflows(self, filters: Dict[str, Any] = None) -> list:
+        """List workflows with optional filtering"""
+        workflows = self.storage.get_all_workflows()
+        
+        if not filters:
+            return workflows
+
+        filtered_workflows = []
+        for workflow in workflows:
+            matches = True
+            for key, value in filters.items():
+                if workflow.get(key) != value:
+                    matches = False
+                    break
+            if matches:
+                filtered_workflows.append(workflow)
+
+        return filtered_workflows
+
+    async def _arun(self, *args, **kwargs):
+        """Async implementation - not used"""
+        raise NotImplementedError("Async not implemented")
 
 class WorkflowTools:
     """Tools for managing lease exit workflows"""
 
     def __init__(self):
         self.storage = Storage()
+        self.tool = WorkflowTool(self.storage)
 
-    def create_workflow(self) -> BaseTool:
-        return CreateWorkflowTool(config=WorkflowToolConfig(storage=self.storage))
-
-    def update_workflow_state(self) -> BaseTool:
-        return UpdateWorkflowStateTool(config=WorkflowToolConfig(storage=self.storage))
-
-    def get_workflow_status(self) -> BaseTool:
-        return GetWorkflowStatusTool(config=WorkflowToolConfig(storage=self.storage))
+    def get_tools(self) -> list:
+        """Get all workflow tools"""
+        return [self.tool]

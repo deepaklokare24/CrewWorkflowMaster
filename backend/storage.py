@@ -1,8 +1,8 @@
 from typing import Dict, Any, List
 import json
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
-from sqlalchemy.orm import Session, DeclarativeBase
+from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime, ForeignKey, Table
+from sqlalchemy.orm import Session, DeclarativeBase, relationship
 from sqlalchemy.ext.declarative import declarative_base
 import os
 import logging
@@ -13,23 +13,57 @@ logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
+# User-Role association table
+user_roles = Table('user_roles', Base.metadata,
+    Column('user_id', String, ForeignKey('users.id')),
+    Column('role_id', String, ForeignKey('roles.id'))
+)
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(String, primary_key=True)
+    email = Column(String, unique=True)
+    name = Column(String)
+    department = Column(String)
+    roles = relationship("Role", secondary=user_roles, back_populates="users")
+    created_at = Column(DateTime, default=datetime.now)
+
+class Role(Base):
+    __tablename__ = 'roles'
+    id = Column(String, primary_key=True)
+    name = Column(String, unique=True)
+    users = relationship("User", secondary=user_roles, back_populates="roles")
+
 class Workflow(Base):
     __tablename__ = 'workflows'
     id = Column(String, primary_key=True)
+    lease_id = Column(String)
+    workflow_type = Column(String)  # e.g., "lease_exit", "lease_renewal"
     data = Column(JSON)
     state = Column(String)
+    current_step = Column(String)
+    created_by = Column(String, ForeignKey('users.id'))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    forms = relationship("Form", back_populates="workflow")
+    approvals = relationship("Approval", back_populates="workflow")
 
 class Form(Base):
     __tablename__ = 'forms'
     id = Column(String, primary_key=True)
+    workflow_id = Column(String, ForeignKey('workflows.id'))
+    form_type = Column(String)  # e.g., "lease_requirements", "exit_requirements"
+    submitted_by = Column(String, ForeignKey('users.id'))
     data = Column(JSON)
+    documents = Column(JSON)  # Store document references
     created_at = Column(DateTime)
+    workflow = relationship("Workflow", back_populates="forms")
 
 class Notification(Base):
     __tablename__ = 'notifications'
     id = Column(String, primary_key=True)
+    workflow_id = Column(String, ForeignKey('workflows.id'))
+    recipient_id = Column(String, ForeignKey('users.id'))
     data = Column(JSON)
     status = Column(String)
     created_at = Column(DateTime)
@@ -37,10 +71,15 @@ class Notification(Base):
 class Approval(Base):
     __tablename__ = 'approvals'
     id = Column(String, primary_key=True)
+    workflow_id = Column(String, ForeignKey('workflows.id'))
+    approver_id = Column(String, ForeignKey('users.id'))
     data = Column(JSON)
     status = Column(String)
+    decision = Column(String)
+    comments = Column(String)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    workflow = relationship("Workflow", back_populates="approvals")
 
 class Storage:
     """SQLite-based storage for the application"""
@@ -70,14 +109,22 @@ class Storage:
             logger.info(f"Created workflow with ID: {workflow_id}")
         return workflow_id
 
-    def update_workflow_state(self, workflow_id: str, new_state: str) -> bool:
+    def update_workflow_state(self, workflow_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update workflow state and metadata"""
         with Session(self.engine) as session:
             workflow = session.query(Workflow).filter_by(id=workflow_id).first()
             if workflow:
-                workflow.state = new_state
+                if "state" in update_data:
+                    workflow.state = update_data["state"]
+                if "current_step" in update_data:
+                    workflow.current_step = update_data["current_step"]
+                if "crew_result" in update_data:
+                    if not workflow.data:
+                        workflow.data = {}
+                    workflow.data["crew_result"] = update_data["crew_result"]
                 workflow.updated_at = datetime.now()
                 session.commit()
-                logger.info(f"Updated workflow {workflow_id} state to {new_state}")
+                logger.info(f"Updated workflow {workflow_id} state to {update_data}")
                 return True
             return False
 
@@ -197,3 +244,57 @@ class Storage:
                 }
                 for w in workflows
             ]
+
+    def get_workflow_progress(self, workflow_id: str) -> Dict[str, Any]:
+        """Get detailed workflow progress information"""
+        with Session(self.engine) as session:
+            workflow = session.query(Workflow).filter_by(id=workflow_id).first()
+            if not workflow:
+                return {}
+
+            # Get all forms for this workflow
+            forms = session.query(Form).filter_by(workflow_id=workflow_id).all()
+            
+            # Get all approvals for this workflow
+            approvals = session.query(Approval).filter_by(workflow_id=workflow_id).all()
+            
+            # Get all notifications for this workflow
+            notifications = session.query(Notification).filter_by(workflow_id=workflow_id).all()
+            
+            return {
+                "id": workflow.id,
+                "state": workflow.state,
+                "current_step": workflow.current_step,
+                "data": workflow.data,
+                "created_at": workflow.created_at.isoformat(),
+                "updated_at": workflow.updated_at.isoformat(),
+                "forms": [
+                    {
+                        "id": form.id,
+                        "form_type": form.form_type,
+                        "submitted_by": form.submitted_by,
+                        "created_at": form.created_at.isoformat()
+                    }
+                    for form in forms
+                ],
+                "approvals": [
+                    {
+                        "id": approval.id,
+                        "approver_id": approval.approver_id,
+                        "status": approval.status,
+                        "decision": approval.decision,
+                        "comments": approval.comments,
+                        "created_at": approval.created_at.isoformat()
+                    }
+                    for approval in approvals
+                ],
+                "notifications": [
+                    {
+                        "id": notification.id,
+                        "recipient_id": notification.recipient_id,
+                        "status": notification.status,
+                        "created_at": notification.created_at.isoformat()
+                    }
+                    for notification in notifications
+                ]
+            }

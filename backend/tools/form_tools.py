@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, Type
-from crewai.tools import BaseTool
+from langchain.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
 from backend.storage import Storage
 
@@ -15,65 +15,83 @@ class FormIdSchema(BaseModel):
     form_id: str = Field(..., description="The ID of the form to retrieve")
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class BaseFormTool(BaseTool):
-    name: str = Field(default="", description="The name of the tool")
-    description: str = Field(default="", description="The description of the tool")
-    args_schema: Optional[Type[BaseModel]] = Field(default=None, description="The schema for tool arguments")
-    config_schema: Type[BaseModel] = Field(default=FormToolConfig, description="The schema for tool configuration")
+class FormTool(BaseTool):
+    name: str = "form_tool"
+    description: str = "Tool for managing lease exit workflow forms"
+    storage: Storage = Field(default=None)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-class ValidateFormTool(BaseFormTool):
-    name: str = Field(default="validate_form", description="Tool name")
-    description: str = Field(default="Validates form data against business rules", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=FormDataSchema, description="Arguments schema")
+    def __init__(self, storage: Storage):
+        super().__init__()
+        self.storage = storage
 
-    def _run(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        # Implement form validation logic
-        is_valid = True  # Add actual validation
-        return {"is_valid": is_valid, "errors": []}
+    def _run(self, action: str, **kwargs) -> Any:
+        """Run the tool with the specified action"""
+        actions = {
+            "create": self.create_form,
+            "validate": self.validate_form,
+            "get": self.get_form,
+            "process_documents": self.process_documents
+        }
+        if action not in actions:
+            raise ValueError(f"Unknown action: {action}")
+        return actions[action](**kwargs)
 
-    async def _arun(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+    def create_form(self, form_data: Dict[str, Any]) -> str:
+        """Create a new form"""
+        return self.storage.store_form(form_data)
 
-class ProcessFormTool(BaseFormTool):
-    name: str = Field(default="process_form", description="Tool name")
-    description: str = Field(default="Processes and stores form submissions", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=FormDataSchema, description="Arguments schema")
+    def validate_form(self, form_type: str, form_data: Dict[str, Any], 
+                     validation_rules: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate form data against rules"""
+        result = {
+            "valid": True,
+            "errors": []
+        }
 
-    def _run(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        form_id = self.config.storage.store_form(form_data)
-        return {"form_id": form_id, "status": "processed"}
+        # Check required fields
+        required_fields = validation_rules.get("required_fields", [])
+        for field in required_fields:
+            if field not in form_data:
+                result["valid"] = False
+                result["errors"].append(f"Missing required field: {field}")
 
-    async def _arun(self, form_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+        # Check field types
+        field_types = validation_rules.get("field_types", {})
+        for field, expected_type in field_types.items():
+            if field in form_data:
+                value = form_data[field]
+                if not isinstance(value, expected_type):
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"Invalid type for field {field}. Expected {expected_type.__name__}"
+                    )
 
-class ExtractFormDataTool(BaseFormTool):
-    name: str = Field(default="extract_form_data", description="Tool description")
-    description: str = Field(default="Extracts key information from form submissions", description="Tool description")
-    args_schema: Type[BaseModel] = Field(default=FormIdSchema, description="Arguments schema")
+        return result
 
-    def _run(self, form_id: str) -> Dict[str, Any]:
-        """Execute the tool's main functionality"""
-        return self.config.storage.get_form(form_id)
+    def get_form(self, form_id: str) -> Dict[str, Any]:
+        """Get form details"""
+        return self.storage.get_form(form_id)
 
-    async def _arun(self, form_id: str) -> Dict[str, Any]:
-        """Async implementation"""
-        raise NotImplementedError("Async run not implemented")
+    def process_documents(self, documents: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Process form documents"""
+        # Document processing logic here
+        return {
+            "processed": True,
+            "document_count": len(documents)
+        }
+
+    async def _arun(self, *args, **kwargs):
+        """Async implementation - not used"""
+        raise NotImplementedError("Async not implemented")
 
 class FormTools:
-    """Tools for handling form submissions and validation"""
+    """Tools for managing forms"""
 
     def __init__(self):
         self.storage = Storage()
+        self.tool = FormTool(self.storage)
 
-    def validate_form(self) -> BaseTool:
-        return ValidateFormTool(config=FormToolConfig(storage=self.storage))
-
-    def process_form(self) -> BaseTool:
-        return ProcessFormTool(config=FormToolConfig(storage=self.storage))
-
-    def extract_form_data(self) -> BaseTool:
-        return ExtractFormDataTool(config=FormToolConfig(storage=self.storage))
+    def get_tools(self) -> list:
+        """Get all form tools"""
+        return [self.tool]

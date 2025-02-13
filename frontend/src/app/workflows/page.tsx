@@ -25,7 +25,7 @@ export default function WorkflowsPage() {
     async function fetchWorkflows() {
       try {
         setLoading(true)
-        const response = await fetch('http://localhost:8000/api/workflow/lease-exit/list')
+        const response = await fetch('/api/workflow/lease-exit/list')
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }

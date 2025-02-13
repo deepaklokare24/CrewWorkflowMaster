@@ -1,4 +1,4 @@
-// File: /home/runner/workspace/frontend/src/app/workflows/page.tsx
+// File: /Users/deepaklokare/codebase/attention-all-you-need/CrewWorkflowMaster/frontend/src/app/workflows/page.tsx
 import * as entry from '../../../../src/app/workflows/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
