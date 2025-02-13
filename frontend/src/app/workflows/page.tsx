@@ -24,14 +24,17 @@ export default function WorkflowsPage() {
   useEffect(() => {
     async function fetchWorkflows() {
       try {
-        const response = await fetch('/api/workflow/lease-exit/list')
+        setLoading(true)
+        const response = await fetch('http://localhost:8000/api/workflow/lease-exit/list')
         if (!response.ok) {
-          throw new Error('Failed to fetch workflows')
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
         const data = await response.json()
         setWorkflows(data)
+        setError('')
       } catch (err) {
-        setError('Failed to load workflows')
+        console.error('Failed to fetch workflows:', err)
+        setError('Failed to load workflows. Please try again later.')
       } finally {
         setLoading(false)
       }
@@ -51,11 +54,17 @@ export default function WorkflowsPage() {
   }
 
   if (loading) {
-    return <div>Loading workflows...</div>
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center">
+          Loading workflows...
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Lease Exit Workflows</h1>
         <Link href="/workflows/new">
