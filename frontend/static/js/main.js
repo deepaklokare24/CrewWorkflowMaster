@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const workflowList = document.getElementById('workflowList');
 
     // Get the backend URL from the window location
-    const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+    const backendUrl = window.location.origin;
     console.log('Backend URL:', backendUrl); // Debug log
 
     workflowForm.addEventListener('submit', async function(e) {
