@@ -4,6 +4,12 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, JSON, DateTime
 from sqlalchemy.orm import Session, DeclarativeBase
 from sqlalchemy.ext.declarative import declarative_base
+import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -40,8 +46,14 @@ class Storage:
     """SQLite-based storage for the application"""
 
     def __init__(self):
-        self.engine = create_engine('sqlite:///lease_exit.db')
-        Base.metadata.create_all(self.engine)
+        try:
+            db_path = os.path.join(os.getcwd(), 'lease_exit.db')
+            self.engine = create_engine(f'sqlite:///{db_path}')
+            Base.metadata.create_all(self.engine)
+            logger.info(f"SQLite database initialized at {db_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {str(e)}")
+            raise
 
     def create_workflow(self, data: Dict[str, Any]) -> str:
         workflow_id = f"wf_{datetime.now().timestamp()}"
@@ -55,6 +67,7 @@ class Storage:
             )
             session.add(workflow)
             session.commit()
+            logger.info(f"Created workflow with ID: {workflow_id}")
         return workflow_id
 
     def update_workflow_state(self, workflow_id: str, new_state: str) -> bool:
@@ -64,6 +77,7 @@ class Storage:
                 workflow.state = new_state
                 workflow.updated_at = datetime.now()
                 session.commit()
+                logger.info(f"Updated workflow {workflow_id} state to {new_state}")
                 return True
             return False
 
@@ -90,6 +104,7 @@ class Storage:
             )
             session.add(form)
             session.commit()
+            logger.info(f"Stored form with ID: {form_id}")
         return form_id
 
     def get_form(self, form_id: str) -> Dict[str, Any]:
@@ -114,6 +129,7 @@ class Storage:
             )
             session.add(notification)
             session.commit()
+            logger.info(f"Stored notification with ID: {notification_id}")
         return notification_id
 
     def get_notification(self, notification_id: str) -> Dict[str, Any]:
@@ -140,6 +156,7 @@ class Storage:
             )
             session.add(approval)
             session.commit()
+            logger.info(f"Created approval with ID: {approval_id}")
         return approval_id
 
     def update_approval(self, approval_id: str, decision: str) -> bool:
@@ -149,6 +166,7 @@ class Storage:
                 approval.status = decision
                 approval.updated_at = datetime.now()
                 session.commit()
+                logger.info(f"Updated approval {approval_id} status to {decision}")
                 return True
             return False
 
