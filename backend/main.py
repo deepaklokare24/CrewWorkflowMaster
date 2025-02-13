@@ -132,7 +132,8 @@ async def list_workflows():
     try:
         logger.info("Fetching all workflows")
         workflows = storage.get_all_workflows()
-        return JSONResponse(content=workflows)
+        # Return empty list instead of 404 when no workflows exist
+        return JSONResponse(content=workflows if workflows else [])
     except Exception as e:
         logger.error(f"Error fetching workflows: {str(e)}")
         raise HTTPException(
