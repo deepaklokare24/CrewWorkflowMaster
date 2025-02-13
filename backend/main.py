@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any
 from crewai import Crew, Task
 import logging
 import os
+from datetime import datetime
 
 from backend.agents.workflow_agent import WorkflowAgent
 from backend.agents.form_agent import FormAgent
@@ -25,14 +26,13 @@ if not os.getenv("ANTHROPIC_API_KEY"):
 app = FastAPI()
 storage = Storage()
 
-# Configure CORS with more specific settings
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, this should be more specific
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # Mount static files
@@ -41,6 +41,91 @@ app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 @app.get("/")
 async def root():
     return FileResponse("frontend/index.html")
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.post("/api/workflow/lease-exit/create")
+async def create_workflow(data: Dict[str, Any]):
+    try:
+        logger.info(f"Creating workflow with data: {data}")
+        workflow_id = storage.create_workflow(data)
+        logger.info(f"Workflow created with ID: {workflow_id}")
+        return JSONResponse(
+            content={"workflow_id": workflow_id, "status": "created"},
+            status_code=201
+        )
+    except Exception as e:
+        logger.error(f"Error creating workflow: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create workflow: {str(e)}"
+        )
+
+@app.get("/api/workflow/lease-exit/{workflow_id}")
+async def get_workflow(workflow_id: str):
+    try:
+        workflow = storage.get_workflow(workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow {workflow_id} not found"
+            )
+        return workflow
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error retrieving workflow: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve workflow: {str(e)}"
+        )
+
+@app.post("/api/forms/submit")
+async def submit_form(form_data: Dict[str, Any]):
+    try:
+        form_id = storage.store_form(form_data)
+        return JSONResponse(
+            content={"form_id": form_id, "status": "submitted"},
+            status_code=201
+        )
+    except Exception as e:
+        logger.error(f"Error submitting form: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to submit form: {str(e)}"
+        )
+
+@app.post("/api/notifications/send")
+async def send_notification(notification_data: Dict[str, Any]):
+    try:
+        notification_id = storage.store_notification(notification_data)
+        return JSONResponse(
+            content={"notification_id": notification_id, "status": "sent"},
+            status_code=201
+        )
+    except Exception as e:
+        logger.error(f"Error sending notification: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send notification: {str(e)}"
+        )
+
+@app.post("/api/approvals/request")
+async def create_approval_request(request_data: Dict[str, Any]):
+    try:
+        approval_id = storage.create_approval(request_data)
+        return JSONResponse(
+            content={"approval_id": approval_id, "status": "pending"},
+            status_code=201
+        )
+    except Exception as e:
+        logger.error(f"Error creating approval request: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create approval request: {str(e)}"
+        )
 
 try:
     # Initialize agents
@@ -104,49 +189,6 @@ try:
 except Exception as e:
     logger.error(f"Error initializing agents: {str(e)}")
     raise
-
-@app.post("/api/workflow/lease-exit/create")
-async def create_workflow(data: Dict[str, Any]):
-    try:
-        workflow_id = storage.create_workflow(data)
-        return {"workflow_id": workflow_id, "status": "created"}
-    except Exception as e:
-        logger.error(f"Error creating workflow: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/workflow/lease-exit/{workflow_id}")
-async def get_workflow(workflow_id: str):
-    workflow = storage.get_workflow(workflow_id)
-    if not workflow:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    return workflow
-
-@app.post("/api/forms/submit")
-async def submit_form(form_data: Dict[str, Any]):
-    try:
-        form_id = storage.store_form(form_data)
-        return {"form_id": form_id, "status": "submitted"}
-    except Exception as e:
-        logger.error(f"Error submitting form: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/notifications/send")
-async def send_notification(notification_data: Dict[str, Any]):
-    try:
-        notification_id = storage.store_notification(notification_data)
-        return {"notification_id": notification_id, "status": "sent"}
-    except Exception as e:
-        logger.error(f"Error sending notification: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/approvals/request")
-async def create_approval_request(request_data: Dict[str, Any]):
-    try:
-        approval_id = storage.create_approval(request_data)
-        return {"approval_id": approval_id, "status": "pending"}
-    except Exception as e:
-        logger.error(f"Error creating approval request: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
