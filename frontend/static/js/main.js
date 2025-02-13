@@ -2,6 +2,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const workflowForm = document.getElementById('workflowForm');
     const workflowList = document.getElementById('workflowList');
 
+    // Get the backend URL from the window location
+    const backendUrl = window.location.protocol + '//' + window.location.hostname + ':8000';
+
     workflowForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -12,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         try {
-            const response = await fetch('http://localhost:8000/api/workflow/lease-exit/create', {
+            const response = await fetch(`${backendUrl}/api/workflow/lease-exit/create`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -22,15 +25,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (response.ok) {
                 const result = await response.json();
-                alert('Workflow created successfully!');
+                showAlert('success', 'Workflow created successfully!');
                 workflowForm.reset();
                 addWorkflowToList(result.workflow_id, formData);
             } else {
-                throw new Error('Failed to create workflow');
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to create workflow');
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to create workflow. Please try again.');
+            showAlert('danger', error.message || 'Failed to create workflow. Please try again.');
         }
     });
 
@@ -44,7 +48,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 <small>ID: ${workflowId}</small>
             </div>
             <p class="mb-1">End Date: ${formData.leaseEndDate}</p>
+            <small class="text-muted">Reason: ${formData.exitReason}</small>
         `;
         workflowList.prepend(listItem);
+    }
+
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        workflowForm.parentElement.insertBefore(alertDiv, workflowForm);
+
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
     }
 });
