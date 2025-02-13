@@ -3,7 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const workflowList = document.getElementById('workflowList');
 
     // Get the backend URL from the window location
-    const backendUrl = window.location.protocol + '//' + window.location.hostname + ':8000';
+    const backendUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+    console.log('Backend URL:', backendUrl); // Debug log
 
     workflowForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -15,11 +16,14 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         try {
+            console.log('Sending request to:', `${backendUrl}/api/workflow/lease-exit/create`); // Debug log
             const response = await fetch(`${backendUrl}/api/workflow/lease-exit/create`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify(formData)
             });
 
