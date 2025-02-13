@@ -1,0 +1,240 @@
+# Lease Exit Workflow Management System
+## System Overview
+
+The system is an AI-powered workflow management platform specifically designed to handle lease exit processes. It utilizes Crew AI agents for orchestrating workflows and integrates with a persistent database for data storage.
+Built using Crew AI, the system dynamically generates workflows, manages approvals, tracks progress, and automates notifications. The system will be designed for scalability, supporting future workflow automation such as Lease Renewals, New Lease Acquisitions, and Building Sales.
+
+The AI-powered agent will generate workflow instances dynamically based on user input and a predefined schema, enabling users to construct applications via natural language prompts. The interface will allow users to interact with AI agents, monitor workflow progress, and manage lease exit details.
+
+Focus mainly on building Crew AI agents pipeline with appropriate tasks and tools. 
+
+## Core Components
+
+### 1. Database Schema
+
+#### User Management
+- Users table with roles (Advisory, IFM, Legal, MAC, PJM, Lease Exit Management Team)
+- Role-based access control mapping
+- Team/Department associations
+
+#### Workflow Management
+- Lease records (property details, dates, status)
+- Workflow instances (current state, history)
+- Task assignments and status
+- Form submissions and responses
+- Document storage (files, metadata)
+- Notification logs and preferences
+- Approval chains and decisions
+
+### 2. AI Agent System (Crew AI)
+
+#### Agent Types
+1. **Workflow Orchestrator Agent**
+   - Manages overall workflow state
+   - Determines next steps based on current state
+   - Handles routing and escalations
+
+2. **Form Processing Agent**
+   - Validates form submissions
+   - Extracts key information
+   - Generates structured data
+
+3. **Notification Agent**
+   - Manages communication routing
+   - Generates notification content
+   - Handles escalations
+
+4. **Approval Chain Agent**
+   - Manages approval workflows
+   - Tracks decision states
+   - Implements approval rules
+
+### 3. User Interface
+
+#### Authentication & Authorization
+- SSO integration capability
+- Role-based access control
+- Department/Team-based permissions
+
+#### Dashboard Views
+1. **Main Dashboard**
+   - Overview of all lease exits in progress
+   - Filterable by status, date, location
+   - Key metrics and statistics
+   - Action items and alerts
+
+2. **Individual Lease Exit View**
+   - Complete timeline of events
+   - Current status and next steps
+   - Document repository
+   - Form submission history
+   - Approval status
+
+3. **Task Management Interface**
+   - Personal task queue
+   - Due dates and priorities
+   - Action items
+   - Form access
+
+4. **Form System**
+   - Dynamic form generation
+   - File upload capabilities
+   - Validation rules
+   - Save/resume functionality
+
+5. **Notification Center**
+   - Real-time alerts
+   - Email integration
+   - Status updates
+   - Action required indicators
+
+AI-Powered Assistance
+   •  AI chatbot assists users in defining workflows and filling forms.
+   •  AI validates input data and ensures consistency.
+
+### 4. API Layer
+
+#### Core Endpoints
+
+1. **Workflow Management**
+```
+POST /api/workflow/lease-exit/create
+GET /api/workflow/lease-exit/{id}
+PUT /api/workflow/lease-exit/{id}/status
+GET /api/workflow/lease-exit/list
+```
+
+2. **Form Management**
+```
+POST /api/forms/submit
+GET /api/forms/template/{id}
+GET /api/forms/submission/{id}
+```
+
+3. **Document Management**
+```
+POST /api/documents/upload
+GET /api/documents/{id}
+GET /api/documents/lease-exit/{id}
+```
+
+4. **Notification Management**
+```
+POST /api/notifications/send
+GET /api/notifications/user/{id}
+PUT /api/notifications/{id}/status
+```
+
+5. **Approval Management**
+```
+POST /api/approvals/request
+PUT /api/approvals/{id}/decision
+GET /api/approvals/pending
+```
+
+### 5. Workflow States
+
+1. **Initial States**
+   - Draft
+   - Submitted
+   - Under Review
+
+2. **Process States**
+   - Advisory Review
+   - IFM Review
+   - MAC Review
+   - PJM Review
+   - Legal Review
+   - Accounting Review
+
+3. **Approval States**
+   - Pending Approval
+   - Approved
+   - Rejected
+   - Revision Needed
+
+4. **Final States**
+   - Ready for Exit
+   - Completed
+   - Cancelled
+
+### 6. Security Requirements
+
+1. **Data Protection**
+   - Encryption at rest
+   - Encryption in transit
+   - Audit logging
+   - Access control logs
+
+2. **Authentication**
+   - Multi-factor authentication support
+   - Session management
+   - Token-based API security
+
+3. **Authorization**
+   - Role-based access control
+   - Department-level permissions
+   - Document-level security
+
+### 7. Integration Requirements
+
+1. **Email System**
+   - SMTP integration
+   - Email template management
+   - Attachment handling
+
+2. **Document Storage**
+   - S3 or equivalent object storage
+   - Version control
+   - Access logging
+
+3. **Analytics**
+   - Event tracking
+   - Performance metrics
+   - Usage statistics
+
+## Implementation Guidelines
+
+### Phase 1 (MVP)
+1. Basic workflow management
+2. Core form functionality
+3. Essential notifications
+4. Basic approval chain
+5. Document upload/download
+
+### Phase 2
+1. Advanced routing rules
+2. Custom form builders
+3. Enhanced reporting
+4. Integration with external systems
+5. Advanced analytics
+
+### Phase 3
+1. AI-powered insights
+2. Predictive workflows
+3. Advanced automation
+4. Custom dashboards
+5. Mobile application
+
+## Technical Stack Recommendations
+
+1. **Backend**
+   - Python for backend APIs
+   - PostgreSQL or supabase for structured data
+   - MongoDB for document storage
+   - Redis for caching
+
+2. **Frontend**
+   - Next.js
+   - shadcn UI / Tailwind
+   - Redux toolkit (RTK) if necessary for state management or just use context API
+
+3. **AI/ML**
+   - Crew AI framework
+   - Azure OpenAI API integration
+   - Vector database for document processing
+
+4. **Infrastructure**
+   - Docker containerization
+   - Kubernetes orchestration
+   - AWS/Azure cloud services
